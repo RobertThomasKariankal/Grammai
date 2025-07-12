@@ -1,0 +1,58 @@
+from flask import Flask, request, render_template, session, redirect, url_for
+from groq import Groq
+import os
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Needed for session handling
+
+# Set your API key here
+GROQ_API_KEY = "KEY"  # Replace this with your real key
+
+client = Groq(api_key=GROQ_API_KEY)
+
+def get_groq_response(user_input):
+    completion = client.chat.completions.create(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a grammar practicing bot. Suggest grammar corrections, explanations, and examples in short. "
+                    "If the user asks anything else, reply: 'I'm only trained to suggest grammar corrections.😊' and other soft words"
+                )
+            },
+            {
+                "role": "user",
+                "content": user_input
+            }
+        ],
+        temperature=1,
+        max_completion_tokens=1024,
+        top_p=1,
+        stream=False
+    )
+    return completion.choices[0].message.content
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if "chat_history" not in session:
+        session["chat_history"] = []
+
+    if request.method == "POST":
+        user_input = request.form["user_input"]
+        groq_reply = get_groq_response(user_input)
+
+        
+        session["chat_history"].append({"role": "user", "content": user_input})
+        session["chat_history"].append({"role": "groq", "content": groq_reply})
+        session.modified = True
+
+    return render_template("chat.html", chat_history=session["chat_history"])
+
+@app.route("/reset")
+def reset():
+    session.pop("chat_history", None)
+    return redirect(url_for("index"))
+
+if __name__ == "__main__":
+    app.run(debug=True)
