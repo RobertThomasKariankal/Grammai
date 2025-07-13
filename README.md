@@ -1,0 +1,1 @@
+Grammai which basically stands for Gammar AI.Is a AI voice assistant which helps in correcting any grammatical errors in our words like your buddy.Its under developing and may soon became available with you everytime:)
