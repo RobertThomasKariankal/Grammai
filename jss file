@@ -1,1 +1,171 @@
+const form = document.getElementById('chatForm');
+const chat = document.getElementById('chat');
+const textarea = document.getElementById('user_input');
+const startBtn = document.getElementById("startMic");
+const stopBtn = document.getElementById("stopMic");
+const statusText = document.getElementById("statusText");
+const micPopup = document.getElementById("micPopup");
+const micWave = document.getElementById("micWave");
+const themeToggle = document.getElementById("themeToggle");
+
+let currentAudio = null;
+let recognition = null;
+let buffer = '';
+let isResponding = false;
+let isListening = false;
+let manuallyStopped = false;
+
+const speakerGlow = document.getElementById("speakerGlow");
+
+themeToggle.onclick = () => {
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+};
+
+if (localStorage.getItem("theme") === "light") {
+  document.body.classList.add("light");
+}
+
+function showMicPopup() {
+  micPopup.style.display = "block";
+  micWave.style.display = "inline-block";
+}
+
+function hideMicPopup() {
+  micPopup.style.display = "none";
+  micWave.style.display = "none";
+}
+
+if ('webkitSpeechRecognition' in window) {
+  recognition = new webkitSpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = true;
+  recognition.continuous = true;
+
+  recognition.onstart = () => {
+    statusText.textContent = "🎧 Listening...";
+    isListening = true;
+    showMicPopup();
+  };
+
+  recognition.onresult = (event) => {
+    let interimTranscript = '';
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        buffer = transcript.trim();
+        submitMessage(buffer);
+      } else {
+        interimTranscript += transcript;
+      }
+    }
+    textarea.value = buffer + interimTranscript;
+
+    if (isResponding && (interimTranscript.trim().length > 0 || buffer.trim().length > 0)) {
+      if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+      isResponding = false;
+    }
+  };
+
+  recognition.onend = () => {
+    hideMicPopup();
+    isListening = false;
+    if (!manuallyStopped) {
+      setTimeout(() => {
+        if (!isListening) recognition.start();
+      }, 400);
+    } else {
+      statusText.textContent = "🛑 Mic stopped";
+    }
+  };
+
+  recognition.onerror = (e) => {
+    statusText.textContent = "❌ " + e.error;
+    hideMicPopup();
+  };
+
+  startBtn.onclick = () => {
+    manuallyStopped = false;
+    recognition?.start();
+    showMicPopup();
+  };
+
+  stopBtn.onclick = () => {
+    manuallyStopped = true;
+    recognition?.stop();
+    hideMicPopup();
+  };
+} else {
+  statusText.textContent = "Speech recognition not supported!";
+  startBtn.disabled = true;
+  stopBtn.disabled = true;
+}
+
+async function submitMessage(message) {
+  if (!message) return;
+
+  buffer = '';
+  textarea.value = '';
+
+  const userDiv = document.createElement("div");
+  userDiv.className = "message user";
+  userDiv.textContent = message;
+  chat.appendChild(userDiv);
+  chat.scrollTop = chat.scrollHeight;
+
+  isResponding = true;
+
+  const typingDiv = document.createElement("div");
+  typingDiv.className = "message groq";
+  typingDiv.innerHTML = "Typing<span class='typing'></span>";
+  chat.appendChild(typingDiv);
+  chat.scrollTop = chat.scrollHeight;
+
+  const response = await fetch("/", {
+    method: "POST",
+    body: new URLSearchParams({ user_input: message })
+  });
+
+  const data = await response.json();
+  typingDiv.remove();
+
+  const groqDiv = document.createElement("div");
+  groqDiv.className = "message groq";
+  groqDiv.textContent = data.reply;
+  chat.appendChild(groqDiv);
+  chat.scrollTop = chat.scrollHeight;
+
+  if (data.audio) {
+    if (currentAudio && !currentAudio.paused) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+
+    speakerGlow.classList.add("active");
+
+    currentAudio = new Audio();
+    currentAudio.crossOrigin = "anonymous";
+    currentAudio.src = data.audio;
+    currentAudio.load();
+    currentAudio.play().catch(err => console.warn("🔇 Audio error:", err));
+
+    currentAudio.onended = () => {
+      speakerGlow.classList.remove("active");
+      isResponding = false;
+    };
+  } else {
+    speakerGlow.classList.remove("active");
+    isResponding = false;
+  }
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  recognition?.stop();
+  await submitMessage(textarea.value.trim());
+  if (!manuallyStopped) recognition?.start();
+});
 
