@@ -1,58 +1,76 @@
-from flask import Flask, request, render_template, session, redirect, url_for
+from flask import Flask, request, render_template, jsonify
 from groq import Groq
+from murf import Murf
 import os
+import time
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # Needed for session handling
+chat_history = []
 
-# Set your API key here
-GROQ_API_KEY = "KEY"  # Replace this with your real key
+# Replace with your real API keys
+GROQ_API_KEY = "key"
+MURF_API_KEY = "key"
 
-client = Groq(api_key=GROQ_API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY)
+murf_client = Murf(api_key=MURF_API_KEY)
+
+def generate_voice(text):
+    try:
+        print(f"\n🎤 Generating voice for: {text}")
+        res = murf_client.text_to_speech.generate(
+            text=text,
+            voice_id="en-IN-aarav"
+        )
+        audio_url = res.audio_file
+        print(f"✅ Audio URL: {audio_url}")
+        return audio_url  # Stream instead of downloading
+
+    except Exception as e:
+        print("❌ Error in generate_voice():", e)
+        return None
 
 def get_groq_response(user_input):
-    completion = client.chat.completions.create(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a grammar practicing bot. Suggest grammar corrections, explanations, and examples in short. "
-                    "If the user asks anything else, reply: 'I'm only trained to suggest grammar corrections.😊' and other soft words"
-                )
-            },
-            {
-                "role": "user",
-                "content": user_input
-            }
-        ],
-        temperature=1,
-        max_completion_tokens=1024,
-        top_p=1,
-        stream=False
-    )
-    return completion.choices[0].message.content
+    try:
+        result = groq_client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[
+                {"role": "system", "content": " "},
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0.7
+        )
+        reply = result.choices[0].message.content.strip()
+        return reply
+    except Exception as e:
+        print("❌ Groq error:", e)
+        return "Sorry, I couldn't process that."
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if "chat_history" not in session:
-        session["chat_history"] = []
+@app.route("/", methods=["GET"])
+def home():
+    return render_template("chat.html", chat_history=chat_history)
 
-    if request.method == "POST":
-        user_input = request.form["user_input"]
-        groq_reply = get_groq_response(user_input)
+@app.route("/", methods=["POST"])
+def chat():
+    user_input = request.form.get("user_input", "").strip()
+    print(f"\n📥 Received input: {user_input}")
+    if not user_input:
+        return jsonify(reply="", audio=None)
 
-        
-        session["chat_history"].append({"role": "user", "content": user_input})
-        session["chat_history"].append({"role": "groq", "content": groq_reply})
-        session.modified = True
+    reply = get_groq_response(user_input)
+    chat_history.append({"role": "user", "content": user_input})
+    chat_history.append({"role": "groq", "content": reply})
 
-    return render_template("chat.html", chat_history=session["chat_history"])
+    audio_url = generate_voice(reply)
+    print(f"🔗 Streaming audio from: {audio_url}")
+
+    return jsonify(reply=reply, audio=audio_url)
 
 @app.route("/reset")
 def reset():
-    session.pop("chat_history", None)
-    return redirect(url_for("index"))
+    global chat_history
+    chat_history = []
+    return render_template("chat.html", chat_history=chat_history)
 
 if __name__ == "__main__":
+    print("\n🚀 Flask running at http://127.0.0.1:5000")
     app.run(debug=True)
