@@ -2,112 +2,112 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Language Chatbot</title>
+  <title>Grammai - Grammar Chatbot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #121212;
-      color: #464343;
+    .theme-toggle-wrapper {
+      position: absolute;
+      top: 16px;
+      left: 20px;
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      align-items: center;
+      gap: 4px;
     }
-
-    .chat-container {
-      flex: 1;
-      padding: 20px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
+    .theme-toggle-wrapper span {
+      font-size: 12px;
+      color: #aaa;
     }
-
-    .message {
-      max-width: 70%;
-      padding: 10px 15px;
-      margin: 10px;
-      border-radius: 12px;
-      line-height: 1.5;
-    }
-
-    .user {
-      align-self: flex-end;
-      background-color: #99cfb1;
-    }
-
-    .groq {
-      align-self: flex-start;
-      background-color: #333;
-    }
-
-    .chat-form {
-      display: flex;
-      padding: 10px;
-      background-color: #1f1f1f;
-      border-top: 1px solid #333;
-    }
-
-    .chat-form textarea {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      resize: none;
-      border-radius: 8px;
+    #themeToggle {
       font-size: 16px;
-    }
-
-    .chat-form button {
-      padding: 10px 15px;
-      background-color: #2e8b57;
+      background: #2e8b57;
       color: white;
       border: none;
-      margin-left: 10px;
+      padding: 6px 10px;
       border-radius: 8px;
       cursor: pointer;
     }
-
-    .chat-form button:hover {
-      background-color: #5d6c64;
+    #themeToggle:hover {
+      background: #4aa378;
     }
 
-    .top-bar {
-      padding: 10px;
-      text-align: center;
-      background-color: #181818;
-      font-size: 18px;
-      font-weight: bold;
-      border-bottom: 1px solid #333;
+    #micToggle {
+      position: relative;
+      font-size: 16px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 50%;
+      background: #2e8b57;
+      color: white;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
     }
-
-    .reset-link {
-      position: absolute;
-      top: 10px;
-      right: 15px;
-      color: #bbb;
-      font-size: 14px;
+    #micToggle.listening {
+      background: #e63946;
     }
-
-    .reset-link:hover {
-      color: rgb(135, 133, 133);
+    #micToggle:hover {
+      box-shadow: 0 0 10px rgba(0,255,213,0.4);
+    }
+    #micIcon {
+      font-size: 24px;
     }
   </style>
 </head>
 <body>
   <div class="top-bar">
-    Grammai
+    Grammai 🎓
     <a class="reset-link" href="/reset">Reset Chat</a>
+    <div class="theme-toggle-wrapper">
+      <span>Toggle Mode</span>
+      <button id="themeToggle">🌓</button>
+    </div>
   </div>
-  <div class="chat-container">
+
+  <div class="chat-container" id="chat">
     {% for msg in chat_history %}
-      <div class="message {{ msg.role }}">
-        {{ msg.content }}
-      </div>
+      <div class="message {{ msg.role }}">{{ msg.content }}</div>
     {% endfor %}
   </div>
-  <form class="chat-form" method="post">
-    <textarea name="user_input" rows="2" placeholder="Type your message..." autofocus required></textarea>
+
+  <div class="controls">
+    <button id="micToggle"><span id="micIcon">🎙️</span></button>
+    <span id="statusText"></span>
+  </div>
+
+  <form class="chat-form" method="post" id="chatForm">
+    <textarea id="user_input" name="user_input" rows="2" placeholder="Type or speak..." required></textarea>
     <button type="submit">Send</button>
   </form>
+
+  <div id="micPopup">🎧 Listening...</div>
+  <div id="speakerGlow"></div>
+
+  <script src="/static/script.js"></script>
+  <script>
+    const micToggle = document.getElementById("micToggle");
+    const micIcon = document.getElementById("micIcon");
+    let isMicOn = false;
+
+    micToggle.onclick = () => {
+      isMicOn = !isMicOn;
+      micToggle.classList.toggle("listening", isMicOn);
+      micIcon.textContent = isMicOn ? "🔇" : "🎙️";
+      if (isMicOn) {
+        manuallyStopped = false;
+        recognition?.start();
+        showMicPopup();
+      } else {
+        manuallyStopped = true;
+        recognition?.stop();
+        hideMicPopup();
+      }
+    };
+  </script>
 </body>
 </html>
