@@ -8,8 +8,8 @@ app = Flask(__name__)
 chat_history = []
 
 # Replace with your real API keys
-GROQ_API_KEY = "key"
-MURF_API_KEY = "key"
+GROQ_API_KEY = ""
+MURF_API_KEY = ""
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 murf_client = Murf(api_key=MURF_API_KEY)
@@ -23,23 +23,29 @@ def generate_voice(text):
         )
         audio_url = res.audio_file
         print(f"✅ Audio URL: {audio_url}")
-        return audio_url  # Stream instead of downloading
-
+        return audio_url
     except Exception as e:
         print("❌ Error in generate_voice():", e)
         return None
 
 def get_groq_response(user_input):
     try:
+        # Add new user input to history
+        chat_history.append({"role": "user", "content": user_input})
+        
+        # Format history as Groq expects: system + all previous user/assistant messages
+        messages = [{"role": "system", "content": "You are a interactive assistant."}]
+        for entry in chat_history:
+            role = "assistant" if entry["role"] == "groq" else entry["role"]
+            messages.append({"role": role, "content": entry["content"]})
+
         result = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
-            messages=[
-                {"role": "system", "content": " "},
-                {"role": "user", "content": user_input}
-            ],
+            messages=messages,
             temperature=0.7
         )
         reply = result.choices[0].message.content.strip()
+        chat_history.append({"role": "groq", "content": reply})  # Save the bot's reply
         return reply
     except Exception as e:
         print("❌ Groq error:", e)
@@ -57,9 +63,6 @@ def chat():
         return jsonify(reply="", audio=None)
 
     reply = get_groq_response(user_input)
-    chat_history.append({"role": "user", "content": user_input})
-    chat_history.append({"role": "groq", "content": reply})
-
     audio_url = generate_voice(reply)
     print(f"🔗 Streaming audio from: {audio_url}")
 
